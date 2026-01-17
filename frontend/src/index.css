@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --monad-purple: #836EF9;
+  --monad-purple-light: #9D8BFA;
+  --monad-purple-dark: #6B5BD4;
+  --monad-bg: #0a0a0a;
+  --monad-card: #111111;
+}
+
+body {
+  @apply bg-[#0a0a0a] text-white;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Monad 紫色按钮 */
+.btn-monad {
+  @apply px-6 py-3 rounded-xl font-semibold transition-all duration-200;
+  background: linear-gradient(135deg, #836EF9 0%, #6B5BD4 100%);
+}
+
+.btn-monad:hover {
+  background: linear-gradient(135deg, #9D8BFA 0%, #836EF9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(131, 110, 249, 0.4);
+}
+
+.btn-monad:disabled {
+  @apply bg-gray-700 cursor-not-allowed;
+  background: #333;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 卡片样式 */
+.card-monad {
+  @apply rounded-2xl p-6 backdrop-blur-md;
+  background: linear-gradient(180deg, rgba(19, 17, 28, 0.9) 0%, rgba(10, 10, 10, 0.95) 100%);
+  border: 1px solid rgba(131, 110, 249, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(131, 110, 249, 0.1) inset;
+}
+
+/* 紫色边框高亮 */
+.border-monad {
+  border-color: rgba(131, 110, 249, 0.3);
+}
+
+/* 输入框 */
+.input-monad {
+  @apply w-full px-4 py-3 rounded-xl bg-[#1a1a1a] border border-gray-800 text-white placeholder-gray-500;
+  @apply focus:outline-none focus:border-[#836EF9] transition-colors;
+}
+
+/* 进度条紫色 */
+.progress-monad {
+  background: linear-gradient(90deg, #836EF9 0%, #9D8BFA 100%);
+}
