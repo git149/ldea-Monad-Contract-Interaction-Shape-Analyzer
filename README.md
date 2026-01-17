@@ -1,4 +1,4 @@
-# Monad 链上项目评分协议
+# Monad 链上项目评分协议 （Monad主网：0x1F4eB0eeBbD97aae09f8f8d6Aaf84a71D8C0c3AA  合约已开源）
 
 Monad Hackathon 的链上项目评分协议（On-chain Project Scoring Protocol）- 通过分析链上数据提供可信的项目风险评估。
 
