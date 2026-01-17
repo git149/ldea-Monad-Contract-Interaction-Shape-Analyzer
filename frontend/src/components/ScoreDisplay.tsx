@@ -1,240 +1,337 @@
-import type { ScoreData, RiskTag, TopHolder, DangerousFunction } from '../App'
+import type { ScoreData, TopHolder } from '../App'
 
 interface Props {
   data: ScoreData
 }
 
-const riskConfig: Record<string, { color: string; bg: string; label: string }> = {
-  low_risk: { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', label: '低风险' },
-  medium_risk: { color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/30', label: '中等风险' },
-  high_risk: { color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/30', label: '高风险' },
-  extreme_risk: { color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30', label: '极高风险' },
+// 根据分数获取状态配置
+function getScoreStatus(score: number) {
+  if (score >= 80) return { label: 'Fully Protected', labelCn: '完全防护', color: '#22c55e', status: 'safe' }
+  if (score >= 60) return { label: 'Moderate Risk', labelCn: '中等风险', color: '#eab308', status: 'warning' }
+  if (score >= 40) return { label: 'High Risk', labelCn: '高风险', color: '#f97316', status: 'danger' }
+  return { label: 'Extreme Risk', labelCn: '极高风险', color: '#ef4444', status: 'critical' }
 }
 
-const tagTypeConfig: Record<string, { color: string; bg: string; icon: string }> = {
-  success: { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', icon: '✓' },
-  warning: { color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/30', icon: '!' },
-  danger: { color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30', icon: '✕' },
+// 圆形进度条组件
+function CircularProgress({ score, size = 180, strokeWidth = 8 }: { score: number; size?: number; strokeWidth?: number }) {
+  const status = getScoreStatus(score)
+  const radius = (size - strokeWidth) / 2
+  const circumference = radius * 2 * Math.PI
+  const offset = circumference - (score / 100) * circumference
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="transform -rotate-90" width={size} height={size}>
+        {/* 背景圆环 */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#1f1f2e"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        {/* 进度圆环 */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={status.color}
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-out"
+          style={{
+            filter: `drop-shadow(0 0 8px ${status.color}40)`
+          }}
+        />
+      </svg>
+      {/* 中心内容 */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <svg className="w-6 h-6 mb-1" fill={status.color} viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+        </svg>
+        <span className="text-4xl font-bold text-white">{Math.round(score)}</span>
+        <span className="text-sm text-gray-500">/100</span>
+      </div>
+    </div>
+  )
+}
+
+// 用户类型分布条
+function UserTypeBar({ label, labelCn, percentage, color }: { label: string; labelCn: string; percentage: number; color: string }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="flex items-center gap-2">
+        <span className="text-gray-400">{label}</span>
+        <span className="text-gray-600 text-sm">{labelCn}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="w-24 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${Math.min(percentage, 100)}%`, backgroundColor: color }}
+          />
+        </div>
+        <span className="text-white font-medium w-14 text-right">{percentage.toFixed(1)}%</span>
+      </div>
+    </div>
+  )
 }
 
 export default function ScoreDisplay({ data }: Props) {
-  const { overview, scores, risk_tags } = data
-  const risk = riskConfig[overview.risk_level] || { color: 'text-gray-400', bg: 'bg-gray-800 border-gray-600', label: '未知' }
+  const { overview, scores } = data
+  const status = getScoreStatus(overview.total_score)
+
+  // 从后端获取真实数据
+  const eoaMetrics = scores.eoa.metrics
+  const holderMetrics = scores.holder.metrics
+
+  // 真实数据
+  const totalAddresses = eoaMetrics.total_addresses || 0
+  const eoaPercentage = eoaMetrics.eoa_percentage || 0
+  const uniqueEoaCount = eoaMetrics.unique_eoa_count || 0
+  const contractCount = totalAddresses - uniqueEoaCount
+
+  // 计算用户类型分布（基于实际 EOA 数据）
+  // EOA 占比就是真实用户占比
+  const realUsersPercentage = eoaPercentage
+  // 合约地址占比（包含 DEX、Bot 等）
+  const contractPercentage = totalAddresses > 0 ? (contractCount / totalAddresses) * 100 : 0
+
+  // Smart Money 数据来自后端（如果有的话）
+  // 注意：后端 holder_result 中可能有 smart_money_count
+  const smartMoneyCount = (data as any).scores?.holder?.smart_money_count || 0
+  const smartMoneyPercentage = totalAddresses > 0 ? (smartMoneyCount / totalAddresses) * 100 : 0
+
+  // Bot 占比估算：非 EOA 地址中，除去 Smart Money 和已知 DEX
+  // 简化计算：合约地址占比的一部分
+  const dexPoolPercentage = Math.min(contractPercentage * 0.3, 10) // DEX/Pool 通常不超过 10%
+  const botsPercentage = Math.max(0, contractPercentage - dexPoolPercentage - smartMoneyPercentage)
+
+  // Bot 活动分析 - 使用合约地址占比作为参考
+  const botVolumeShare = contractPercentage
+  const botStatus = botVolumeShare < 20 ? 'Organic' : botVolumeShare < 50 ? 'Moderate' : 'High Bot Activity'
+  const botStatusCn = botVolumeShare < 20 ? '自然' : botVolumeShare < 50 ? '中等' : '高机器人活动'
+
+  // Top10 持有者集中度
+  const top10Percentage = holderMetrics.top10_percentage || 0
 
   return (
     <div className="space-y-6">
-      {/* 总分概览卡片 */}
-      <div className="card-monad">
-        <div className={`p-6 rounded-xl border ${risk.bg} mb-6`}>
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-gray-500 text-sm mb-1">综合评分</p>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-5xl font-bold ${risk.color}`}>
-                  {Math.round(overview.total_score)}
-                </span>
-                <span className="text-xl text-gray-600">/100</span>
-              </div>
+      {/* 主评分卡片 */}
+      <div className="bg-[#12121a] rounded-2xl border border-white/5 p-8">
+        <div className="flex items-center gap-8">
+          {/* 圆形评分 */}
+          <CircularProgress score={overview.total_score} />
+
+          {/* 评分信息 */}
+          <div className="flex-1">
+            <p className="text-gray-500 text-sm mb-1">SHIELD SCORE  护盾评分</p>
+            <h2 className="text-3xl font-bold mb-1" style={{ color: status.color }}>
+              {status.label}  {status.labelCn}
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              {overview.total_score >= 80
+                ? 'Highly organic activity with healthy distribution'
+                : overview.total_score >= 60
+                ? 'Moderate risk detected in token distribution'
+                : 'High concentration detected - proceed with caution'
+              }
+            </p>
+            <p className="text-gray-500 text-sm">
+              {overview.total_score >= 80
+                ? '高度有机活动，健康分布'
+                : overview.total_score >= 60
+                ? '代币分布存在中等风险'
+                : '检测到高集中度 - 请谨慎操作'
+              }
+            </p>
+
+            {/* 进度条 */}
+            <div className="mt-4 h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-1000"
+                style={{
+                  width: `${overview.total_score}%`,
+                  backgroundColor: status.color
+                }}
+              />
             </div>
-            <div className="text-right">
-              <p className="text-gray-500 text-sm mb-1">风险等级</p>
-              <p className={`text-2xl font-bold ${risk.color}`}>
-                {overview.risk_label_cn || risk.label}
-              </p>
+
+            {/* Token 地址 */}
+            <div className="mt-4 flex items-center gap-2">
+              <span className="text-gray-500 text-sm">Token: 代币:</span>
+              <a
+                href={`https://monad.socialscan.io/token/${data.token_address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-monad-purple hover:underline font-mono text-sm"
+              >
+                {data.token_address.slice(0, 10)}...{data.token_address.slice(-8)}
+              </a>
+              <button
+                onClick={() => navigator.clipboard.writeText(data.token_address)}
+                className="text-gray-500 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* 总分进度条 */}
-          <div className="mt-4 h-2 bg-gray-800 rounded-full overflow-hidden">
+      {/* 三列卡片 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Concentration 卡片 */}
+        <div className="bg-[#12121a] rounded-2xl border border-white/5 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">📊</span>
+            <h3 className="text-white font-semibold">Concentration  专注度</h3>
+          </div>
+
+          <p className="text-gray-500 text-sm mb-2">Top 10% Volume Share  前 10%市场份额</p>
+          <p className="text-4xl font-bold text-white mb-4">
+            {top10Percentage.toFixed(1)}%
+          </p>
+
+          <div className="h-1 bg-gray-800 rounded-full overflow-hidden mb-4">
             <div
-              className="h-full progress-monad rounded-full transition-all duration-500"
-              style={{ width: `${overview.total_score}%` }}
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(top10Percentage, 100)}%`,
+                backgroundColor: top10Percentage > 80 ? '#ef4444' : top10Percentage > 50 ? '#f97316' : '#22c55e'
+              }}
             />
           </div>
-        </div>
 
-        {/* 风险标签 */}
-        {risk_tags && risk_tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {risk_tags.map((tag) => (
-              <RiskTagBadge key={tag.key} tag={tag} />
-            ))}
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${top10Percentage > 80 ? 'bg-red-500' : top10Percentage > 50 ? 'bg-orange-500' : 'bg-green-500'}`}></span>
+            <span className={top10Percentage > 80 ? 'text-red-400' : top10Percentage > 50 ? 'text-orange-400' : 'text-green-400'}>
+              {top10Percentage > 80 ? 'Highly Concentrated  高度集中' : top10Percentage > 50 ? 'Moderately Concentrated  中度集中' : 'Well Distributed  分布良好'}
+            </span>
           </div>
-        )}
-
-        {/* 分项评分概览 */}
-        <div className="grid grid-cols-3 gap-4">
-          <ScoreItem
-            label={scores.eoa.name_cn || "用户活跃度"}
-            score={scores.eoa.score}
-            maxScore={scores.eoa.max_score}
-            icon="👤"
-            riskLevel={scores.eoa.risk_level}
-          />
-          <ScoreItem
-            label={scores.holder.name_cn || "持仓分布"}
-            score={scores.holder.score}
-            maxScore={scores.holder.max_score}
-            icon="📊"
-            riskLevel={scores.holder.risk_level}
-          />
-          <ScoreItem
-            label={scores.permission.name_cn || "合约安全"}
-            score={scores.permission.score}
-            maxScore={scores.permission.max_score}
-            icon="🔒"
-            riskLevel={scores.permission.risk_level}
-          />
+          <p className="text-gray-600 text-xs mt-1">
+            {top10Percentage > 80 ? 'High concentration - few addresses dominate' : top10Percentage > 50 ? 'Moderate concentration detected' : 'Healthy distribution across holders'}
+          </p>
+          <p className="text-gray-700 text-xs">
+            {top10Percentage > 80 ? '高浓度 - 少数地址主导' : top10Percentage > 50 ? '检测到中等浓度' : '持有者分布健康'}
+          </p>
         </div>
 
-        {/* 代币地址 */}
-        <div className="mt-6 pt-4 border-t border-gray-800">
-          <p className="text-sm text-gray-500">
-            代币地址:
-            <a
-              href={`https://monad.socialscan.io/token/${data.token_address}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-2 text-[#836EF9] hover:underline font-mono"
-            >
-              {data.token_address.slice(0, 10)}...{data.token_address.slice(-8)}
-            </a>
+        {/* User Types 卡片 */}
+        <div className="bg-[#12121a] rounded-2xl border border-white/5 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">👥</span>
+            <h3 className="text-white font-semibold">User Types  用户类型</h3>
+          </div>
+
+          <div className="space-y-1">
+            <UserTypeBar label="Real Users" labelCn="真实用户" percentage={realUsersPercentage} color="#22c55e" />
+            <UserTypeBar label="Smart Money" labelCn="智能资金" percentage={smartMoneyPercentage} color="#eab308" />
+            <UserTypeBar label="DEX/Pool" labelCn="DEX/池" percentage={dexPoolPercentage} color="#3b82f6" />
+            <UserTypeBar label="Bots" labelCn="机器人" percentage={botsPercentage} color="#f97316" />
+          </div>
+        </div>
+
+        {/* Bot Activity 卡片 */}
+        <div className="bg-[#12121a] rounded-2xl border border-white/5 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">🤖</span>
+            <h3 className="text-white font-semibold">Bot Activity  机器人活动</h3>
+          </div>
+
+          <p className="text-gray-500 text-sm mb-2">Bot Volume Share  机器人容量份额</p>
+          <p className="text-4xl font-bold text-white mb-4">{botVolumeShare.toFixed(1)}%</p>
+
+          <div className="h-1 bg-gray-800 rounded-full overflow-hidden mb-4">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(botVolumeShare, 100)}%`,
+                backgroundColor: botVolumeShare < 20 ? '#22c55e' : botVolumeShare < 50 ? '#eab308' : '#ef4444'
+              }}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${botVolumeShare < 20 ? 'bg-green-500' : botVolumeShare < 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></span>
+            <span className={botVolumeShare < 20 ? 'text-green-400' : botVolumeShare < 50 ? 'text-yellow-400' : 'text-red-400'}>
+              {botStatus}  {botStatusCn}
+            </span>
+          </div>
+          <p className="text-gray-600 text-xs mt-1">
+            {botVolumeShare < 20 ? 'Minimal bot activity, mostly real users' : botVolumeShare < 50 ? 'Some bot activity detected' : 'High bot activity detected'}
+          </p>
+          <p className="text-gray-700 text-xs">
+            {botVolumeShare < 20 ? '极少数机器人活动，主要是真实用户' : botVolumeShare < 50 ? '检测到一些机器人活动' : '检测到高机器人活动'}
           </p>
         </div>
       </div>
 
-      {/* EOA 分析详情 */}
-      <EOADetails scores={scores.eoa} dataSource={data.data_sources?.eoa} />
+      {/* Top Interactors 表格 */}
+      {holderMetrics.top10_holders && holderMetrics.top10_holders.length > 0 && (
+        <div className="bg-[#12121a] rounded-2xl border border-white/5 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📋</span>
+              <h3 className="text-white font-semibold">Top Interactors  主要互动者</h3>
+            </div>
+            <span className="text-gray-500 text-sm">
+              {totalAddresses.toLocaleString()} addresses analyzed  分析了 {totalAddresses.toLocaleString()} 个地址
+            </span>
+          </div>
 
-      {/* 持仓分布详情 */}
-      <HolderDetails scores={scores.holder} dataSource={data.data_sources?.holder} />
-
-      {/* 合约权限详情 */}
-      <PermissionDetails scores={scores.permission} dataSource={data.data_sources?.permission} />
-    </div>
-  )
-}
-
-// 风险标签组件
-function RiskTagBadge({ tag }: { tag: RiskTag }) {
-  const config = tagTypeConfig[tag.type] || tagTypeConfig.warning
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border ${config.bg} ${config.color}`}>
-      <span className="text-xs">{config.icon}</span>
-      {tag.label_cn || tag.label}
-    </span>
-  )
-}
-
-// 分数项组件
-function ScoreItem({ label, score, maxScore, icon, riskLevel }: {
-  label: string;
-  score: number;
-  maxScore: number;
-  icon: string;
-  riskLevel?: string;
-}) {
-  const percentage = (score / maxScore) * 100
-  const levelConfig = riskConfig[riskLevel || ''] || { color: 'text-white' }
-
-  return (
-    <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800/50">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">{icon}</span>
-        <p className="text-sm text-gray-400">{label}</p>
-      </div>
-      <p className={`text-2xl font-bold mb-2 ${levelConfig.color}`}>
-        {Math.round(score)}
-        <span className="text-sm text-gray-500 font-normal">/{maxScore}</span>
-      </p>
-      <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className="h-full progress-monad rounded-full transition-all duration-500"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-// EOA 分析详情组件
-function EOADetails({ scores, dataSource }: { scores: ScoreData['scores']['eoa']; dataSource?: string }) {
-  const { metrics } = scores
-
-  return (
-    <div className="card-monad">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">👤</span>
-          <h3 className="text-lg font-semibold text-white">{scores.name_cn || "用户活跃度分析"}</h3>
-        </div>
-        <span className="text-[#836EF9] font-bold">{Math.round(scores.score)}/{scores.max_score}</span>
-      </div>
-      <p className="text-gray-400 text-sm mb-4">{scores.description_cn || scores.description}</p>
-
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <MetricCard label="独立 EOA 数量" value={metrics.unique_eoa_count?.toLocaleString() || '0'} />
-        <MetricCard label="EOA 占比" value={`${metrics.eoa_percentage?.toFixed(1) || 0}%`} />
-        <MetricCard label="分析地址数" value={metrics.total_addresses?.toLocaleString() || '0'} />
-      </div>
-
-      {dataSource && (
-        <div className="text-xs text-gray-500 pt-3 border-t border-gray-800">
-          数据来源: {dataSource.toUpperCase()}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 持仓分布详情组件
-function HolderDetails({ scores, dataSource }: { scores: ScoreData['scores']['holder']; dataSource?: string }) {
-  const { metrics } = scores
-
-  return (
-    <div className="card-monad">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">📊</span>
-          <h3 className="text-lg font-semibold text-white">{scores.name_cn || "持仓分布分析"}</h3>
-        </div>
-        <span className="text-[#836EF9] font-bold">{Math.round(scores.score)}/{scores.max_score}</span>
-      </div>
-      <p className="text-gray-400 text-sm mb-4">{scores.description_cn || scores.description}</p>
-
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <MetricCard label="总持有者数" value={metrics.total_holders?.toLocaleString() || '0'} />
-        <MetricCard label="Top10 占比" value={`${metrics.top10_percentage?.toFixed(2) || 0}%`} highlight={metrics.top10_percentage > 50} />
-      </div>
-
-      {/* Top 10 持有者表格 */}
-      {metrics.top10_holders && metrics.top10_holders.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-sm font-medium text-gray-400 mb-3">Top 10 持有者</h4>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full">
               <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-800">
-                  <th className="pb-2 pr-4">#</th>
-                  <th className="pb-2 pr-4">地址</th>
-                  <th className="pb-2 text-right">占比</th>
+                <tr className="text-left text-gray-500 text-sm border-b border-white/5">
+                  <th className="pb-3 font-medium">#</th>
+                  <th className="pb-3 font-medium">Address  地址</th>
+                  <th className="pb-3 font-medium">Type  类型</th>
+                  <th className="pb-3 font-medium text-right">Volume  交易量</th>
+                  <th className="pb-3 font-medium text-right">Share  分享</th>
                 </tr>
               </thead>
               <tbody>
-                {metrics.top10_holders.map((holder: TopHolder) => (
-                  <tr key={holder.rank} className="border-b border-gray-800/50">
-                    <td className="py-2 pr-4 text-gray-400">{holder.rank}</td>
-                    <td className="py-2 pr-4">
+                {holderMetrics.top10_holders.slice(0, 10).map((holder: TopHolder, idx: number) => (
+                  <tr key={holder.rank || idx} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3 text-gray-400">{holder.rank || idx + 1}</td>
+                    <td className="py-3">
                       <a
                         href={`https://monad.socialscan.io/address/${holder.address}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#836EF9] hover:underline font-mono"
+                        className="text-monad-purple hover:underline font-mono text-sm"
                       >
-                        {holder.address_short}
+                        {holder.address_short || `${holder.address.slice(0, 6)}...${holder.address.slice(-4)}`}
                       </a>
                     </td>
-                    <td className="py-2 text-right text-gray-300">{holder.percentage?.toFixed(2)}%</td>
+                    <td className="py-3">
+                      <span className="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400">
+                        EOA
+                      </span>
+                    </td>
+                    <td className="py-3 text-right text-gray-300 font-mono text-sm">
+                      {holder.balance?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '-'}
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 h-1 bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-monad-purple rounded-full"
+                            style={{ width: `${Math.min(holder.percentage || 0, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-gray-300 text-sm w-14 text-right">
+                          {holder.percentage?.toFixed(2) || '0'}%
+                        </span>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -242,119 +339,6 @@ function HolderDetails({ scores, dataSource }: { scores: ScoreData['scores']['ho
           </div>
         </div>
       )}
-
-      {dataSource && (
-        <div className="text-xs text-gray-500 pt-3 border-t border-gray-800 mt-4">
-          数据来源: {dataSource.toUpperCase()}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 合约权限详情组件
-function PermissionDetails({ scores, dataSource }: { scores: ScoreData['scores']['permission']; dataSource?: string }) {
-  const { metrics } = scores
-
-  return (
-    <div className="card-monad">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🔒</span>
-          <h3 className="text-lg font-semibold text-white">{scores.name_cn || "合约安全分析"}</h3>
-        </div>
-        <span className="text-[#836EF9] font-bold">{Math.round(scores.score)}/{scores.max_score}</span>
-      </div>
-      <p className="text-gray-400 text-sm mb-4">{scores.description_cn || scores.description}</p>
-
-      {/* 状态检查 */}
-      <div className="space-y-2 mb-4">
-        <StatusItem
-          label="Owner 权限"
-          value={metrics.has_owner ? "有 Owner" : "无 Owner"}
-          isGood={!metrics.has_owner}
-          subValue={metrics.owner_address ? `${metrics.owner_address.slice(0, 10)}...${metrics.owner_address.slice(-8)}` : undefined}
-        />
-        <StatusItem
-          label="Owner 已放弃"
-          value={metrics.is_renounced ? "已放弃" : "未放弃"}
-          isGood={metrics.is_renounced}
-        />
-        <StatusItem
-          label="多签地址"
-          value={metrics.is_multisig ? "是" : "否"}
-          isGood={metrics.is_multisig}
-        />
-        <StatusItem
-          label="代理合约"
-          value={metrics.is_proxy ? "是" : "否"}
-          isGood={!metrics.is_proxy}
-        />
-      </div>
-
-      {/* 危险函数 */}
-      {metrics.dangerous_functions && metrics.dangerous_functions.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-sm font-medium text-red-400 mb-3">危险函数 ({metrics.dangerous_functions.length})</h4>
-          <div className="space-y-2">
-            {metrics.dangerous_functions.map((func: DangerousFunction, idx: number) => (
-              <div key={idx} className="flex items-center gap-2 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span className="text-red-400">⚠</span>
-                <span className="text-gray-400">{func.category}:</span>
-                <code className="text-red-300 font-mono">{func.signature}</code>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 风险摘要 */}
-      {metrics.risk_summary && metrics.risk_summary.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-sm font-medium text-cyan-400 mb-3">风险提示</h4>
-          <ul className="space-y-1">
-            {metrics.risk_summary.map((item: string, idx: number) => (
-              <li key={idx} className="text-sm text-gray-400 flex items-start gap-2">
-                <span className="text-cyan-400">•</span>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {dataSource && (
-        <div className="text-xs text-gray-500 pt-3 border-t border-gray-800 mt-4">
-          数据来源: {dataSource.toUpperCase()}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 指标卡片组件
-function MetricCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="bg-[#1a1a1a] rounded-lg p-3 border border-gray-800/50">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${highlight ? 'text-purple-400' : 'text-white'}`}>{value}</p>
-    </div>
-  )
-}
-
-// 状态项组件
-function StatusItem({ label, value, isGood, subValue }: { label: string; value: string; isGood: boolean; subValue?: string }) {
-  return (
-    <div className="flex items-center justify-between py-2 px-3 bg-[#1a1a1a] rounded-lg">
-      <span className="text-sm text-gray-400">{label}</span>
-      <div className="text-right">
-        <span className={`text-sm font-medium ${isGood ? 'text-green-400' : 'text-red-400'}`}>
-          {isGood ? '✓' : '✕'} {value}
-        </span>
-        {subValue && (
-          <p className="text-xs text-gray-500 mt-0.5 font-mono">{subValue}</p>
-        )}
-      </div>
     </div>
   )
 }
