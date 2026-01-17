@@ -29,7 +29,7 @@ export const config = createConfig({
 })
 
 // 合约地址
-export const SCORE_REGISTRY_ADDRESS = '0xaFEffbA23777283f105c0C652B9fea2A40557727' as const
+export const SCORE_REGISTRY_ADDRESS = '0x1F4eB0eeBbD97aae09f8f8d6Aaf84a71D8C0c3AA' as const
 
 // 合约 ABI（只包含需要的函数）
 export const SCORE_REGISTRY_ABI = [
