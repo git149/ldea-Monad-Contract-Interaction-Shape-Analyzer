@@ -9,6 +9,9 @@ Monad Hackathon 的链上项目评分协议（On-chain Project Scoring Protocol�
 https://analyzer-ebon-nu.vercel.app/
 ![18d89dd9e807a8218d0f619199b49dff](https://github.com/user-attachments/assets/80b4952c-49cb-471a-86d5-dce9959c3843)
 
+<img width="1305" height="929" alt="image" src="https://github.com/user-attachments/assets/404e87f4-1380-45d0-852a-e1963652499f" />
+
+
 
 ## 技术栈
 
